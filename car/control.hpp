@@ -54,27 +54,27 @@ void setMotorPWM(Motor motor) {
 }
 
 // I'm pretty sure there's no delays cuz it's probably a interupt
+struct StatusPacket stat;
 void controlLoop() {
-  int intcounts[2];
-
   // copy and set to zero quickly to avoid a race condition
   for(int i = 0; i <= 1; i++) {
-    intcounts[i] = motors[i].intcount;
+    stat.intcounts[i] = motors[i].intcount;
     motors[i].intcount = 0;
     setMotorPWM(motors[i]);
   }
 
-  for(int i = 0; i <= 1; i++) {
+  /*for(int i = 0; i <= 1; i++) {
     Serial.print("Motor ");
     Serial.print(i + 1);
     Serial.println(":");
     //int rotations = intcounts[i] / HolesInDisc;
     Serial.print("  Notches: ");
     Serial.println(intcounts[i]);
-    float mps = ((intcounts[i] / HolesInDisc) * PI * wheelDiaCM);
+    float mps = ((intcounts[i] / HolesInDisc) * PI * wheelDiaCM) * 1 / 0.1;
     Serial.print("  CentiMeters Per Seconds: ");
     Serial.println(mps);
-  }
+    stat.speed[i] = mps;
+  }*/
 
 }
 

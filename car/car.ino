@@ -7,6 +7,7 @@ const int leftWheel = 4;
 const int rightWheel = 5;
 const int statusLED = 16;
 
+#include "packets.h"
 #include "utils.hpp"
 #include "control.hpp"
 
@@ -53,75 +54,21 @@ void loop() {
   yield();
   int packetSize = Udp.parsePacket();
   if (packetSize) {
-    char incomingPacket[CMDBUFFERSIZE];
+    //char incomingPacket[sizeof(struct control)/sizeof(char)];
+    ControlPacket controlPacket;
     Serial.printf("Received %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
-    int len = Udp.read(incomingPacket, 255);
-    if (len > 0) {
-      incomingPacket[len] = 0;
+    int len = Udp.read(reinterpret_cast<char *>(&controlPacket), sizeof(ControlPacket));
+    if(len != sizeof(ControlPacket)) return;
+
+    //struct control controlPacket = reinterpret_cast<struct control>(incomingPacket);
+    for(int i = 0; i <= 1; i++) {
+      motors[i].curPWM = controlPacket.pwm[i];
     }
-    Serial.printf("UDP packet contents: %s\n", incomingPacket);
-    
-    const char* reply = runCommand(incomingPacket);
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
-    Udp.write(reply);
-    Udp.write('\n');
+    Udp.write(reinterpret_cast<char *>(&stat), sizeof(struct StatusPacket));
     Udp.endPacket();
   }
 }
 
-const char* runCommand(char* fullCommand) { // returns status of command
-  Serial.println(fullCommand);
-
-  int index = 0;
-  char* split[50];
-  //char* cFullCommand = strdup(fullCommand.c_str()); // ... this needs to be free'd
-
-  char* command = strtok(fullCommand, " ");
-  while (command != 0) {
-    split[index] = command;
-    index++;
-    command = strtok(0, " ");
-  }
-  Serial.print("Index : "); Serial.println(index);
-  yield();
-  
-  if (index == 3 && strcmp(split[0], "mov") == 0) { // mov pwm time
-    int pwm = atoi(split[1]);
-    int del = atoi(split[2]);
-    
-    analogWrite(leftWheel, pwm);
-    analogWrite(rightWheel, pwm);
-    delay(del);
-    analogWrite(leftWheel, 0);
-    analogWrite(rightWheel, 0);
-    return "OK";
-  }
-
-  if (index == 3 && strcmp(split[0], "set") == 0) { // set left/right pwm
-    if (atoi(split[1])) {
-      analogWrite(leftWheel, atoi(split[2]));
-    } else {   
-      analogWrite(rightWheel, atoi(split[2]));
-    }
-
-    goto OK;
-  }
-
-  // sets both at the same time
-  if (index == 3 && strcmp(split[0], "both") == 0) { // both leftPWM rightPWM
-    /*analogWrite(leftWheel, atoi(split[1]));
-    analogWrite(rightWheel, atoi(split[2]));*/
-    motors[0].curPWM = atoi(split[1]);
-    motors[1].curPWM = atoi(split[2]);
-    goto OK;
-  }
-  
-  //return "OK";
-  //free(cFullCommand);
-  return "Invalid Command";
-OK:
-  //free(cFullCommand);
-  return "OK";
-}
 

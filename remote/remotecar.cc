@@ -11,6 +11,7 @@
 #include <netinet/tcp.h> // for TCP_NODELAY
 #include <netdb.h> 
 
+#include "../packets.h"
 #define BUFSIZE 1024
 
 /* 
@@ -23,8 +24,8 @@ void error(char *msg) {
 
 int main(int argc, char** argv)
 {
-  char buf[BUFSIZE];
-  
+  //char buf[BUFSIZE];
+  printf("%i\n", sizeof(struct StatusPacket));
   //  -- joystick setup --
   // Create an instance of Joystick
   Joystick joystick("/dev/input/js0");
@@ -93,36 +94,38 @@ int main(int argc, char** argv)
             	//printf("%li\n", posValue);
             	double normalValue = (posValue * (1023.0 / (2.0 * JoystickEvent::MAX_AXES_VALUE)));
             	//printf("%f\n", normalValue);
-		(left ? leftPWM : rightPWM) = normalValue;
-		changed = true;
+                (left ? leftPWM : rightPWM) = normalValue;
+                changed = true;
          }      
       }
     }
     
-        for (int i=0; i<200; i++) {
-           printf("\b");
-        }
+    for (int i=0; i<200; i++) {
+       printf("\b");
+    }
 
-    //if (changed) {
-        // no \n so we can erase it
-        //sprintf(buf, "both %i %i\n", leftPWM, rightPWM);
-        sprintf(buf, "both %i %i\n", rightPWM, leftPWM); // inverse ( easier for me to control... )
-    	//std::cout << buf;
-    	
-	/* send the message line to the server */
-	n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
-	if (n < 0) 
-	error("ERROR writing to socket");
+    struct ControlPacket control;
+    control.pwm[0] = leftPWM;
+    control.pwm[1] = rightPWM;
+    
+    struct StatusPacket info;
+
+    /* send the message line to the server */
+    n = sendto(sockfd, &control, sizeof(struct ControlPacket), 0, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
+    if (n < 0) 
+    error("ERROR writing to socket");
+
+    /* print the server's reply */
+    //bzero(buf, BUFSIZE);
+    //n = read(sockfd, buf, BUFSIZE);
+    socklen_t src_addr_len = sizeof(serveraddr);
+    n = recvfrom(sockfd, &info, sizeof(struct StatusPacket), 0, (struct sockaddr *) &serveraddr, &src_addr_len);
+    if (n < 0) 
+    error("ERROR reading from socket");
+    //printf("Echo from server: %s\n", buf);
 	
-	/* print the server's reply */
-	/*bzero(buf, BUFSIZE);
-	n = read(sockfd, buf, BUFSIZE);
-	if (n < 0) 
-	  error("ERROR reading from socket");
-	printf("Echo from server: %s\n", buf);*/
-    //}
-    printf("Left PWM : %i; Right PWM : %i; Left Wheel Speed : %i; Right Wheel Speed : %i                         ",
-           leftPWM, rightPWM, 0,0);
+    printf("Left PWM : %.4i; Right PWM : %.4i; Left Wheel Speed : %.4i; Right Wheel Speed : %.4i",
+           leftPWM, rightPWM, info.intcounts[0], info.intcounts[1]);
   }
   close(sockfd);
   return 0;
