@@ -8,7 +8,7 @@
 
 #define wheelDiaCM 6.0
 #define HolesInDisc 20.0
-const int D[] = {16,5,4,0,2,14,12,13,15}; // for Wemos Mini
+//const int D[] = {16,5,4,0,2,14,12,13,15}; // for Wemos Mini
 
 struct Motor {
   // pins
@@ -38,13 +38,13 @@ void rightInt() {
 void setMotorPWM(Motor motor, int speed) {
   Serial.print("Setting motor PWM to ");
   Serial.println(speed);
-  if (speed != motor.curPWM) {
-    analogWrite(motor.enable, 0); // turn off PWM to avoid any quick short circuits
+  //if (speed != motor.curPWM) {
+    //analogWrite(motor.enable, 0); // turn off PWM to avoid any quick short circuits
     digitalWrite(motor.fwd, speed > 0 ? HIGH : LOW);
     digitalWrite(motor.bkwd, speed < 0 ? HIGH : LOW);
     analogWrite(motor.enable, abs(speed));
     motor.curPWM = speed;
-  }
+  //}
 }
 
 // I'm pretty sure there's no delays cuz it's probably a interupt
@@ -74,15 +74,15 @@ void controlLoop() {
 Ticker control;
 void setupControl() {
   // pin setup
-  motors[0].fwd = D[3];
-  motors[0].bkwd = D[2];
-  motors[0].enable = D[1];
-  motors[0].sensor = D[4];
+  motors[0].fwd = D7;
+  motors[0].bkwd = D8;
+  motors[0].enable = D2;
+  //motors[0].sensor = D7;
   
-  motors[1].fwd = D[6];
-  motors[1].bkwd = D[5];
-  motors[1].enable = D[0];
-  motors[1].sensor = D[7];
+  motors[1].fwd = D5;
+  motors[1].bkwd = D6;
+  motors[1].enable = D1;
+  //motors[1].sensor = D8;
 
   for(int i = 0; i <= 1; i++) {
     pinMode(motors[i].fwd, OUTPUT);
@@ -97,11 +97,12 @@ void setupControl() {
   
   /*attachInterrupt(digitalPinToInterrupt(motors[0].sensor), leftInt, CHANGE);
   attachInterrupt(digitalPinToInterrupt(motors[1].sensor), rightInt, CHANGE);*/
-  attachInterrupt(digitalPinToInterrupt(motors[0].sensor), leftInt, RISING);
+  
+  /*attachInterrupt(digitalPinToInterrupt(motors[0].sensor), leftInt, RISING);
   attachInterrupt(digitalPinToInterrupt(motors[1].sensor), rightInt, RISING);
   //control.attach(0.05, controlLoop); // run every 50ms
   control.attach(0.1,controlLoop); //run every 100ms
-  //control.attach(1, controlLoop); // run every second (debug)
+  //control.attach(1, controlLoop); // run every second (debug)*/
 
 }
 

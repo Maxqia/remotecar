@@ -41,7 +41,7 @@ void setup() {
   pinMode(leftWheel, OUTPUT);
   pinMode(rightWheel, OUTPUT);
   //analogWriteFreq(128); // 2 for testing
-  analogWriteFreq(2);
+  //analogWriteFreq(2);
   Serial.println("Start!");
   
   Serial.print("PWM Range : 0 - ");
