@@ -25,7 +25,7 @@ void error(char *msg) {
 int main(int argc, char** argv)
 {
   //char buf[BUFSIZE];
-  printf("%i\n", sizeof(struct StatusPacket));
+  printf("%i\n", sizeof(struct ControlPacket));
   //  -- joystick setup --
   // Create an instance of Joystick
   Joystick joystick("/dev/input/js0");
@@ -71,14 +71,18 @@ int main(int argc, char** argv)
     /* connect: create a connection with the server */
     /*if (connect(sockfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) < 0) //edit -- cast to get rid of error
       error("ERROR connecting");*/
+    
+    // set read to no delay so we don't get stuck there
+    struct timeval read_timeout;
+    read_timeout.tv_sec = 0;
+    read_timeout.tv_usec = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof read_timeout);
   // -- end socket setup --
   
   int leftPWM = 0, rightPWM = 0;
   while (true)
   {
     bool changed = false;
-    // Restrict rate
-    usleep(100000); // 100 ms
 
     // Attempt to sample an event from the joystick
     JoystickEvent event;
@@ -108,24 +112,28 @@ int main(int argc, char** argv)
     control.pwm[0] = leftPWM;
     control.pwm[1] = rightPWM;
     
-    struct StatusPacket info;
+    static struct StatusPacket info;
 
     /* send the message line to the server */
     n = sendto(sockfd, &control, sizeof(struct ControlPacket), 0, (struct sockaddr *) &serveraddr, sizeof(serveraddr));
     if (n < 0) 
     error("ERROR writing to socket");
+    
+    // Restrict rate
+    usleep(100000); // 100 ms
 
     /* print the server's reply */
     //bzero(buf, BUFSIZE);
     //n = read(sockfd, buf, BUFSIZE);
+    struct StatusPacket newPacket;
     socklen_t src_addr_len = sizeof(serveraddr);
-    n = recvfrom(sockfd, &info, sizeof(struct StatusPacket), 0, (struct sockaddr *) &serveraddr, &src_addr_len);
-    if (n < 0) 
-    error("ERROR reading from socket");
-    //printf("Echo from server: %s\n", buf);
+    n = recvfrom(sockfd, &newPacket, sizeof(struct StatusPacket), 0, (struct sockaddr *) &serveraddr, &src_addr_len);
+    if (n == sizeof(struct StatusPacket)) {
+        info = newPacket;
+    }
 	
     printf("Left PWM : %.4i; Right PWM : %.4i; Left Wheel Speed : %.4i; Right Wheel Speed : %.4i",
-           leftPWM, rightPWM, info.intcounts[0], info.intcounts[1]);
+           control.pwm[0], control.pwm[1], info.intcounts[0], info.intcounts[1]);
   }
   close(sockfd);
   return 0;

@@ -11,7 +11,8 @@ const int statusLED = 16;
 #include "utils.hpp"
 #include "control.hpp"
 
-#define CMDBUFFERSIZE 50
+const int CMD_BUFFER_SIZE = (sizeof(struct ControlPacket)/sizeof(char)) + 1;
+
 WiFiUDP Udp;
 
 void setup() {
@@ -19,6 +20,7 @@ void setup() {
   digitalWrite(statusLED, LOW);
   
   Serial.begin(115200);
+  Serial.println(sizeof(ControlPacket));
   connectWifi();
   setupOTA();
 
@@ -39,6 +41,7 @@ void setup() {
   pinMode(leftWheel, OUTPUT);
   pinMode(rightWheel, OUTPUT);
   //analogWriteFreq(128); // 2 for testing
+  analogWriteFreq(2);
   Serial.println("Start!");
   
   Serial.print("PWM Range : 0 - ");
@@ -54,15 +57,22 @@ void loop() {
   yield();
   int packetSize = Udp.parsePacket();
   if (packetSize) {
-    //char incomingPacket[sizeof(struct control)/sizeof(char)];
+    char incomingPacket[CMD_BUFFER_SIZE];
     ControlPacket controlPacket;
+    
     Serial.printf("Received %d bytes from %s, port %d\n", packetSize, Udp.remoteIP().toString().c_str(), Udp.remotePort());
-    int len = Udp.read(reinterpret_cast<char *>(&controlPacket), sizeof(ControlPacket));
-    if(len != sizeof(ControlPacket)) return;
+    int len = Udp.read(incomingPacket, CMD_BUFFER_SIZE);
+    if(len != sizeof(struct ControlPacket)) return;
+    memcpy(&controlPacket, incomingPacket, sizeof(struct ControlPacket)); // get rid of the null terminator character
 
     //struct control controlPacket = reinterpret_cast<struct control>(incomingPacket);
     for(int i = 0; i <= 1; i++) {
-      motors[i].curPWM = controlPacket.pwm[i];
+      int currentSpeed = controlPacket.pwm[i]; // implicit type casting
+      Serial.print("Recv packet motor ");
+      Serial.print(i);
+      Serial.print(" speed : ");
+      Serial.println(controlPacket.pwm[i]);
+      setMotorPWM(motors[i], currentSpeed);
     }
 
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());

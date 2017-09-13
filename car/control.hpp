@@ -35,22 +35,16 @@ void rightInt() {
   motorInt(1);
 }
 
-void setMotorPWM(Motor motor) {
-  int speed = motor.curPWM;
-  /*if (speed > 0) {
-    digitalWrite(motor.fwd, HIGH);
-    digitalWrite(motor.bkwd, LOW);
-  } else if (speed < 0) {
-    digitalWrite(motor.fwd, LOW);
-    digitalWrite(motor.bkwd, HIGH);
-  } else { // it's off Jim!
-    digitalWrite(motor.fwd, LOW);
-    digitalWrite(motor.bkwd, LOW);
-  }*/
-  analogWrite(motor.enable, 0); // turn off PWM to avoid any quick short circuits
-  digitalWrite(motor.fwd, speed > 0 ? HIGH : LOW);
-  digitalWrite(motor.bkwd, speed < 0 ? HIGH : LOW);
-  analogWrite(motor.enable, speed);
+void setMotorPWM(Motor motor, int speed) {
+  Serial.print("Setting motor PWM to ");
+  Serial.println(speed);
+  if (speed != motor.curPWM) {
+    analogWrite(motor.enable, 0); // turn off PWM to avoid any quick short circuits
+    digitalWrite(motor.fwd, speed > 0 ? HIGH : LOW);
+    digitalWrite(motor.bkwd, speed < 0 ? HIGH : LOW);
+    analogWrite(motor.enable, abs(speed));
+    motor.curPWM = speed;
+  }
 }
 
 // I'm pretty sure there's no delays cuz it's probably a interupt
@@ -60,7 +54,6 @@ void controlLoop() {
   for(int i = 0; i <= 1; i++) {
     stat.intcounts[i] = motors[i].intcount;
     motors[i].intcount = 0;
-    setMotorPWM(motors[i]);
   }
 
   /*for(int i = 0; i <= 1; i++) {
@@ -81,16 +74,14 @@ void controlLoop() {
 Ticker control;
 void setupControl() {
   // pin setup
-  motors[0].fwd = D[4];
-  motors[0].bkwd = D[3];
+  motors[0].fwd = D[3];
+  motors[0].bkwd = D[2];
+  motors[0].enable = D[1];
+  motors[0].sensor = D[4];
   
-  motors[1].fwd = D[1];
-  motors[1].bkwd = D[2];
-
-  motors[0].enable = D[0];
-  motors[1].enable = D[5];
-
-  motors[0].sensor = D[6];
+  motors[1].fwd = D[6];
+  motors[1].bkwd = D[5];
+  motors[1].enable = D[0];
   motors[1].sensor = D[7];
 
   for(int i = 0; i <= 1; i++) {
@@ -99,9 +90,9 @@ void setupControl() {
     pinMode(motors[i].enable, OUTPUT);
     pinMode(motors[i].sensor, INPUT);
     motors[i].intcount = 0;
-    motors[i].curPWM = 0;
+    //motors[i].curPWM = 0;
     //motors[i].curPWM = 1023; // maximum for testing
-    //setMotorPWM(motors[i]);
+    setMotorPWM(motors[i], 0);
   }
   
   /*attachInterrupt(digitalPinToInterrupt(motors[0].sensor), leftInt, CHANGE);
