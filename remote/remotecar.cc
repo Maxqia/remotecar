@@ -9,11 +9,18 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h> // for TCP_NODELAY
-#include <netdb.h> 
+#include <netdb.h>
+#include <cmath>
 
 #include "../packets.h"
 #define BUFSIZE 1024
+
+#define MIN_PWM 700.0
+#define MAX_PWM 1023.0
 #define AXIS_CONV (1023.0 / (2.0 * JoystickEvent::MAX_AXES_VALUE))
+
+#define LEFTAXIS_CORRECTION 1024
+#define LEFTAXIS_DEADZONE 8000
 
 /* 
  * error - wrapper for perror
@@ -21,6 +28,20 @@
 void error(char *msg) {
     perror(msg);
     exit(0);
+}
+
+double convAxisPWM(double axis, int maxSize, int deadZone) {
+    double ret = 0;
+    if (abs(axis) > deadZone) {
+        int negative = axis / abs(axis);
+        ret = axis;
+        ret -= negative * deadZone; // remove the deadzone
+        
+        // same as below, but handle negative values instead of the 2 * MAX_AXES_VALUE
+        //ret = (ret * (MAX_PWM - MIN_PWM / maxSize)) + negative * MIN_PWM;
+        ret = (ret * ((MAX_PWM - MIN_PWM) / maxSize)) + negative * MIN_PWM;
+    }
+    return ret;
 }
 
 int main(int argc, char** argv)
@@ -80,7 +101,7 @@ int main(int argc, char** argv)
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof read_timeout);
   // -- end socket setup --
   
-  int leftTrigger = 0, rightTrigger = 0;
+  static int leftTrigger = 0, rightTrigger = 0, leftStick = 0;
   while (true) {
     // Attempt to sample an event from the joystick
     JoystickEvent event;
@@ -90,9 +111,14 @@ int main(int argc, char** argv)
         //printf("Axis %u is at position %d\n", event.number, event.value);
         switch (event.number) {
             case 2:
-                leftTrigger = event.value;
+                leftTrigger = event.value + JoystickEvent::MAX_AXES_VALUE; // make them only positive
+                break;
             case 5:
-                rightTrigger = event.value;
+                rightTrigger = event.value + JoystickEvent::MAX_AXES_VALUE;
+                break;
+            case 0:
+                leftStick = event.value + LEFTAXIS_CORRECTION;
+                break;
          }      
       }
     }
@@ -101,10 +127,23 @@ int main(int argc, char** argv)
        printf("\b");
     }
 
-    double bothPWM = (rightTrigger - leftTrigger) * AXIS_CONV;
+    double turnPWM = convAxisPWM(leftStick, JoystickEvent::MAX_AXES_VALUE, LEFTAXIS_DEADZONE);
+    /*if (abs(leftStick) > LEFTAXIS_DEADZONE) {
+        int negative = leftStick / abs(leftStick);
+        turnPWM = leftStick;
+        turnPWM -= negative * LEFTAXIS_DEADZONE; // remove the deadzone
+        
+        // same as below, but handle negative values instead of the 2 * MAX_AXES_VALUE
+        turnPWM = (turnPWM * (MAX_PWM - MIN_PWM / JoystickEvent::MAX_AXES_VALUE)) + negative * MIN_PWM;
+    }*/
+
+    double bothPWM = convAxisPWM(rightTrigger - leftTrigger, 2 * JoystickEvent::MAX_AXES_VALUE, 0);
+    //bothPWM = (bothPWM * ((MAX_PWM - MIN_PWM) / (2 * JoystickEvent::MAX_AXES_VALUE))) + MIN_PWM;
     struct ControlPacket control;
-    control.pwm[0] = bothPWM;
-    control.pwm[1] = bothPWM;
+    control.pwm[0] = bothPWM + turnPWM;
+    control.pwm[1] = bothPWM - turnPWM;
+
+    printf("turnPWM : %f, rightTrigger : %i, leftTrigger : %i, bothPWM : %f\n", turnPWM, rightTrigger, leftTrigger, bothPWM);
     
     static struct StatusPacket info;
 
@@ -126,7 +165,7 @@ int main(int argc, char** argv)
         info = newPacket;
     }
 	
-    printf("Left PWM : %.4i; Right PWM : %.4i; Left Wheel Speed : %.4i; Right Wheel Speed : %.4i",
+    printf("Left PWM : %.4i; Right PWM : %.4i; Left Wheel Speed : %.4i; Right Wheel Speed : %.4i\n",
            control.pwm[0], control.pwm[1], info.intcounts[0], info.intcounts[1]);
   }
   close(sockfd);
