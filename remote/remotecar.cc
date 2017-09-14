@@ -13,6 +13,7 @@
 
 #include "../packets.h"
 #define BUFSIZE 1024
+#define AXIS_CONV (1023.0 / (2.0 * JoystickEvent::MAX_AXES_VALUE))
 
 /* 
  * error - wrapper for perror
@@ -79,11 +80,8 @@ int main(int argc, char** argv)
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof read_timeout);
   // -- end socket setup --
   
-  int leftPWM = 0, rightPWM = 0;
-  while (true)
-  {
-    bool changed = false;
-
+  int leftTrigger = 0, rightTrigger = 0;
+  while (true) {
     // Attempt to sample an event from the joystick
     JoystickEvent event;
     while (joystick.sample(&event)) {
@@ -92,14 +90,9 @@ int main(int argc, char** argv)
         //printf("Axis %u is at position %d\n", event.number, event.value);
         switch (event.number) {
             case 2:
-                left = true;
+                leftTrigger = event.value;
             case 5:
-            	long posValue = ((long) event.value + JoystickEvent::MAX_AXES_VALUE);
-            	//printf("%li\n", posValue);
-            	double normalValue = (posValue * (1023.0 / (2.0 * JoystickEvent::MAX_AXES_VALUE)));
-            	//printf("%f\n", normalValue);
-                (left ? leftPWM : rightPWM) = normalValue;
-                changed = true;
+                rightTrigger = event.value;
          }      
       }
     }
@@ -108,9 +101,10 @@ int main(int argc, char** argv)
        printf("\b");
     }
 
+    double bothPWM = (rightTrigger - leftTrigger) * AXIS_CONV;
     struct ControlPacket control;
-    control.pwm[0] = leftPWM;
-    control.pwm[1] = rightPWM;
+    control.pwm[0] = bothPWM;
+    control.pwm[1] = bothPWM;
     
     static struct StatusPacket info;
 
