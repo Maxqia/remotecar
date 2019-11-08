@@ -15,7 +15,7 @@
 #include "../packets.h"
 #define BUFSIZE 1024
 
-#define MIN_PWM 700.0
+#define MIN_PWM 500.0
 #define MAX_PWM 1023.0
 #define AXIS_CONV (1023.0 / (2.0 * JoystickEvent::MAX_AXES_VALUE))
 
@@ -51,6 +51,7 @@ int main(int argc, char** argv)
   //  -- joystick setup --
   // Create an instance of Joystick
   Joystick joystick("/dev/input/js0");
+  //Joystick joystick("/dev/input/js2"); // ps4 controller
 
   // Ensure that it was found and that we can use it
   if (!joystick.isFound())
@@ -67,8 +68,9 @@ int main(int argc, char** argv)
     //char buf[BUFSIZE];
 
   //hostname = "192.168.4.207";
-  hostname = "192.168.6.170";
+  //hostname = "192.168.6.170";
   //hostname = "192.168.4.1";
+  hostname = "192.168.0.110";
   portno = 23;
 
     /* socket: create the socket */
@@ -128,20 +130,46 @@ int main(int argc, char** argv)
     }
 
     double turnPWM = convAxisPWM(leftStick, JoystickEvent::MAX_AXES_VALUE, LEFTAXIS_DEADZONE);
-    /*if (abs(leftStick) > LEFTAXIS_DEADZONE) {
+    if (abs(leftStick) > LEFTAXIS_DEADZONE) {
         int negative = leftStick / abs(leftStick);
         turnPWM = leftStick;
         turnPWM -= negative * LEFTAXIS_DEADZONE; // remove the deadzone
         
-        // same as below, but handle negative values instead of the 2 * MAX_AXES_VALUE
-        turnPWM = (turnPWM * (MAX_PWM - MIN_PWM / JoystickEvent::MAX_AXES_VALUE)) + negative * MIN_PWM;
-    }*/
+        turnPWM *= MAX_PWM / JoystickEvent::MAX_AXES_VALUE;
+        turnPWM *= 1.25;
+    }
 
-    double bothPWM = convAxisPWM(rightTrigger - leftTrigger, 2 * JoystickEvent::MAX_AXES_VALUE, 0);
-    //bothPWM = (bothPWM * ((MAX_PWM - MIN_PWM) / (2 * JoystickEvent::MAX_AXES_VALUE))) + MIN_PWM;
     struct ControlPacket control;
-    control.pwm[0] = bothPWM + turnPWM;
-    control.pwm[1] = bothPWM - turnPWM;
+    double bothPWM = rightTrigger - leftTrigger;
+    if (abs(bothPWM) > 0) {
+    	int negative = bothPWM / abs(bothPWM);
+    	bothPWM = (bothPWM * ((MAX_PWM - MIN_PWM) / (2 * JoystickEvent::MAX_AXES_VALUE))) + negative * MIN_PWM;
+    }
+    
+    control.pwm[0] = bothPWM;
+    control.pwm[1] = bothPWM;
+    if (bothPWM > 0) {
+    	if (turnPWM < 0) {
+    		control.pwm[0] += turnPWM;
+    		/*control.pwm[1] -= turnPWM * ((1024 - bothPWM)  / 1024);
+    		/*if (control.pwm[0] > MAX_PWM) {
+	    		control.pwm[1] = (control.pwm[0] - MAX_PWM) / 4;
+	    		control.pwm[0] = MAX_PWM;
+    		}*/
+    	} else if (turnPWM > 0) {
+    		control.pwm[1] -= turnPWM;
+    	}
+    	//control.pwm[0] += (turnPWM < 0 ? turnPWM : 0);
+    	//control.pwm[1] -= (turnPWM > 0 ? turnPWM : 0);
+    	//control.pwm[0] += turnPWM * ((1024 - bothPWM)  / 1024);
+        //control.pwm[1] -= turnPWM * ((1024 - bothPWM)  / 1024);
+    } else {
+    	control.pwm[0] += turnPWM;
+        control.pwm[1] -= turnPWM;
+    }
+    
+
+    //struct ControlPacket control;
 
     printf("turnPWM : %f, rightTrigger : %i, leftTrigger : %i, bothPWM : %f\n", turnPWM, rightTrigger, leftTrigger, bothPWM);
     
